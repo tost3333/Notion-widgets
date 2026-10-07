@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weather</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#191919; --fg:#ffffff; --muted:#d4d4d4; --dim:#9b9b9b; --line:#2f2f2f; }
+  * { box-sizing:border-box; margin:0; }
+  html, body { background:var(--bg); }
+  body { font-family:'IBM Plex Mono', ui-monospace, Consolas, monospace; color:var(--fg); padding:16px; }
+  .wrap { max-width:560px; margin:0 auto; }
+  .city { font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); text-align:center; }
+  .today { display:flex; align-items:center; justify-content:center; gap:18px; margin:10px 0 6px; }
+  .today .icon { font-size:clamp(52px, 14vw, 76px); line-height:1; }
+  .today .temp { font-weight:700; font-size:clamp(48px, 13vw, 72px); line-height:1; }
+  .cond { text-align:center; color:var(--muted); font-size:clamp(14px, 3.6vw, 18px); }
+  .range { text-align:center; color:var(--dim); font-size:14px; margin-top:4px; }
+  .week { display:grid; grid-template-columns:repeat(7, 1fr); gap:4px; margin-top:18px; padding-top:14px; border-top:1px solid var(--line); }
+  .day { text-align:center; font-size:12px; }
+  .day .n { color:var(--dim); text-transform:uppercase; letter-spacing:.06em; }
+  .day .i { font-size:22px; margin:6px 0; }
+  .day .hi { font-weight:700; }
+  .day .lo { color:var(--dim); }
+  .day.is-today .n { color:var(--fg); font-weight:700; }
+  .err { text-align:center; color:var(--dim); padding:24px 0; }
+  @media (max-width:380px) { .day { font-size:10px; } .day .i { font-size:17px; } }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><div class="err">Loading weather…</div></div>
+<script>
+  // ---- settings ----
+  const CITY = "Lausanne";
+  const LAT = 46.5197, LON = 6.6323;
+  const TZ = "Europe/Zurich";
+  // ------------------
+  const WMO = (c) => {
+    if (c === 0) return ["☀️", "Clear sky"];
+    if (c === 1) return ["🌤️", "Mainly clear"];
+    if (c === 2) return ["⛅", "Partly cloudy"];
+    if (c === 3) return ["☁️", "Overcast"];
+    if (c === 45 || c === 48) return ["🌫️", "Fog"];
+    if (c >= 51 && c <= 57) return ["🌦️", "Drizzle"];
+    if (c >= 61 && c <= 67) return ["🌧️", "Rain"];
+    if (c >= 71 && c <= 77) return ["🌨️", "Snow"];
+    if (c >= 80 && c <= 82) return ["🌦️", "Rain showers"];
+    if (c === 85 || c === 86) return ["🌨️", "Snow showers"];
+    if (c >= 95) return ["⛈️", "Thunderstorm"];
+    return ["🌡️", "—"];
+  };
+  const url = "https://api.open-meteo.com/v1/forecast?latitude=" + LAT + "&longitude=" + LON +
+    "&current=temperature_2m,weather_code" +
+    "&daily=weather_code,temperature_2m_max,temperature_2m_min" +
+    "&timezone=" + encodeURIComponent(TZ) + "&forecast_days=7";
+
+  async function load() {
+    const app = document.getElementById("app");
+    try {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(r.status);
+      const d = await r.json();
+      const [icon, label] = WMO(d.current.weather_code);
+      const days = d.daily.time.map((t, i) => {
+        const [ic] = WMO(d.daily.weather_code[i]);
+        const name = i === 0 ? "Today" : new Date(t + "T12:00:00").toLocaleDateString("en-GB", { weekday:"short" });
+        return '<div class="day' + (i === 0 ? ' is-today' : '') + '"><div class="n">' + name + '</div><div class="i">' + ic +
+          '</div><div class="hi">' + Math.round(d.daily.temperature_2m_max[i]) + '°</div><div class="lo">' +
+          Math.round(d.daily.temperature_2m_min[i]) + '°</div></div>';
+      }).join("");
+      app.innerHTML =
+        '<div class="city">' + CITY + '</div>' +
+        '<div class="today"><div class="icon">' + icon + '</div><div class="temp">' + Math.round(d.current.temperature_2m) + '°</div></div>' +
+        '<div class="cond">' + label + '</div>' +
+        '<div class="range">H ' + Math.round(d.daily.temperature_2m_max[0]) + '° · L ' + Math.round(d.daily.temperature_2m_min[0]) + '°</div>' +
+        '<div class="week">' + days + '</div>';
+    } catch (e) {
+      app.innerHTML = '<div class="err">Weather unavailable. Retrying…</div>';
+    }
+  }
+  load();
+  setInterval(load, 30 * 60 * 1000);
+</script>
+</body>
+</html>
